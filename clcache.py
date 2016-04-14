@@ -51,6 +51,7 @@ from subprocess import Popen, PIPE
 import sys
 import multiprocessing
 import re
+from gzip import GzipFile
 
 VERSION = "3.0.3-dev"
 
@@ -240,7 +241,9 @@ class ObjectCache:
 
     def hasEntry(self, key):
         with self.lock:
-            return os.path.exists(self.cachedObjectName(key)) or os.path.exists(self._cachedCompilerOutputName(key))
+            return os.path.exists(self.cachedObjectName(key)) \
+                   or os.path.exists(self._cachedCompilerOutputName(key)) \
+                   or os.path.exists(self._cachedCompilerLegacyOutputName(key))
 
     def setEntry(self, key, objectFileName, compilerOutput, compilerStderr):
         with self.lock:
@@ -248,11 +251,11 @@ class ObjectCache:
                 os.makedirs(self._cacheEntryDir(key))
             if objectFileName != '':
                 copyOrLink(objectFileName, self.cachedObjectName(key))
-            with open(self._cachedCompilerOutputName(key), 'w') as f:
-                f.write(compilerOutput)
+            with GzipFile(self._cachedCompilerOutputName(key), 'w') as outFile:
+                outFile.write(compilerOutput)
             if compilerStderr != '':
-                with open(self._cachedCompilerStderrName(key), 'w') as f:
-                    f.write(compilerStderr)
+                with GzipFile(self._cachedCompilerStderrName(key), 'w') as outFile:
+                    outFile.write(compilerStderr)
 
     def setManifest(self, manifestHash, manifest):
         with self.lock:
@@ -277,14 +280,27 @@ class ObjectCache:
         return os.path.join(self._cacheEntryDir(key), "object")
 
     def cachedCompilerOutput(self, key):
-        with open(self._cachedCompilerOutputName(key), 'r') as f:
-            return f.read()
+        filename = self._cachedCompilerOutputName(key)
+        if os.path.exists(filename):
+            with GzipFile(filename, 'r') as f:
+                return f.read()
+
+        # legacy fallback
+        filename = self._cachedCompilerLegacyOutputName( key )
+        with open(filename, 'r') as f:
+            return f.read( )
 
     def cachedCompilerStderr(self, key):
         fileName = self._cachedCompilerStderrName(key)
         if os.path.exists(fileName):
+            with GzipFile(fileName, 'r') as f:
+                return f.read()
+
+        fileName = self._cachedCompilerLegacyStderrName(key)
+        if os.path.exists(fileName):
             with open(fileName, 'r') as f:
                 return f.read()
+
         return ''
 
     def _cacheEntryDir(self, key):
@@ -297,9 +313,15 @@ class ObjectCache:
         return os.path.join(self._manifestDir(manifestHash), manifestHash + ".dat")
 
     def _cachedCompilerOutputName(self, key):
-        return os.path.join(self._cacheEntryDir(key), "output.txt")
+        return os.path.join(self._cacheEntryDir(key), "output.txt.gz")
 
     def _cachedCompilerStderrName(self, key):
+        return os.path.join(self._cacheEntryDir(key), "stderr.txt.gz")
+
+    def _cachedCompilerLegacyOutputName(self, key):
+        return os.path.join(self._cacheEntryDir(key), "output.txt")
+
+    def _cachedCompilerLegacyStderrName(self, key):
         return os.path.join(self._cacheEntryDir(key), "stderr.txt")
 
     @staticmethod
