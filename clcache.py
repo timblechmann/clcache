@@ -253,10 +253,10 @@ class ObjectCache:
                 copyOrLink(objectFileName, self.cachedObjectName(key))
 
             if cfg.compressedOutput():
-                with GzipFile(self._cachedCompilerCompressedOutputName(key), 'w') as outFile:
+                with GzipFile(self._cachedCompilerCompressedOutputName(key), 'w', 1) as outFile:
                     outFile.write(compilerOutput)
                 if compilerStderr != '':
-                    with GzipFile(self._cachedCompilerCompressedStderrName(key), 'w') as outFile:
+                    with GzipFile(self._cachedCompilerCompressedStderrName(key), 'w', 1) as outFile:
                         outFile.write(compilerStderr)
             else:
                 with open(self._cachedCompilerOutputName( key ), 'w') as outFile:
