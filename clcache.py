@@ -242,20 +242,28 @@ class ObjectCache:
     def hasEntry(self, key):
         with self.lock:
             return os.path.exists(self.cachedObjectName(key)) \
-                   or os.path.exists(self._cachedCompilerOutputName(key)) \
-                   or os.path.exists(self._cachedCompilerLegacyOutputName(key))
+                   or os.path.exists(self._cachedCompilerCompressedOutputName(key)) \
+                   or os.path.exists(self._cachedCompilerOutputName(key))
 
-    def setEntry(self, key, objectFileName, compilerOutput, compilerStderr):
+    def setEntry(self, cfg, key, objectFileName, compilerOutput, compilerStderr):
         with self.lock:
             if not os.path.exists(self._cacheEntryDir(key)):
                 os.makedirs(self._cacheEntryDir(key))
             if objectFileName != '':
                 copyOrLink(objectFileName, self.cachedObjectName(key))
-            with GzipFile(self._cachedCompilerOutputName(key), 'w') as outFile:
-                outFile.write(compilerOutput)
-            if compilerStderr != '':
-                with GzipFile(self._cachedCompilerStderrName(key), 'w') as outFile:
-                    outFile.write(compilerStderr)
+
+            if cfg.compressedOutput():
+                with GzipFile(self._cachedCompilerCompressedOutputName(key), 'w') as outFile:
+                    outFile.write(compilerOutput)
+                if compilerStderr != '':
+                    with GzipFile(self._cachedCompilerCompressedStderrName(key), 'w') as outFile:
+                        outFile.write(compilerStderr)
+            else:
+                with open(self._cachedCompilerOutputName( key ), 'w') as outFile:
+                    outFile.write( compilerOutput )
+                if compilerStderr != '':
+                    with open(self._cachedCompilerStderrName( key ), 'w') as outFile:
+                        outFile.write( compilerStderr )
 
     def setManifest(self, manifestHash, manifest):
         with self.lock:
@@ -280,23 +288,23 @@ class ObjectCache:
         return os.path.join(self._cacheEntryDir(key), "object")
 
     def cachedCompilerOutput(self, key):
-        filename = self._cachedCompilerOutputName(key)
+        filename = self._cachedCompilerCompressedOutputName(key)
         if os.path.exists(filename):
             with GzipFile(filename, 'r') as f:
                 return f.read()
 
         # legacy fallback
-        filename = self._cachedCompilerLegacyOutputName( key )
+        filename = self._cachedCompilerOutputName(key)
         with open(filename, 'r') as f:
             return f.read( )
 
     def cachedCompilerStderr(self, key):
-        fileName = self._cachedCompilerStderrName(key)
+        fileName = self._cachedCompilerCompressedStderrName(key)
         if os.path.exists(fileName):
             with GzipFile(fileName, 'r') as f:
                 return f.read()
 
-        fileName = self._cachedCompilerLegacyStderrName(key)
+        fileName = self._cachedCompilerStderrName(key)
         if os.path.exists(fileName):
             with open(fileName, 'r') as f:
                 return f.read()
@@ -312,16 +320,16 @@ class ObjectCache:
     def _manifestName(self, manifestHash):
         return os.path.join(self._manifestDir(manifestHash), manifestHash + ".dat")
 
-    def _cachedCompilerOutputName(self, key):
+    def _cachedCompilerCompressedOutputName(self, key):
         return os.path.join(self._cacheEntryDir(key), "output.txt.gz")
 
-    def _cachedCompilerStderrName(self, key):
+    def _cachedCompilerCompressedStderrName(self, key):
         return os.path.join(self._cacheEntryDir(key), "stderr.txt.gz")
 
-    def _cachedCompilerLegacyOutputName(self, key):
+    def _cachedCompilerOutputName(self, key):
         return os.path.join(self._cacheEntryDir(key), "output.txt")
 
-    def _cachedCompilerLegacyStderrName(self, key):
+    def _cachedCompilerStderrName(self, key):
         return os.path.join(self._cacheEntryDir(key), "stderr.txt")
 
     @staticmethod
@@ -370,8 +378,9 @@ class PersistentJSONDict:
 
 
 class Configuration:
-    _defaultValues = {"MaximumCacheSize": 1073741824} # 1 GiB
-
+    _defaultValues = {"MaximumCacheSize": 1073741824, # 1 GiB
+                      "CompressOutputs" : False
+                     }
     def __init__(self, objectCache):
         self._objectCache = objectCache
         with objectCache.lock:
@@ -386,6 +395,12 @@ class Configuration:
 
     def setMaximumCacheSize(self, size):
         self._cfg["MaximumCacheSize"] = size
+
+    def compressedOutput(self ):
+        return self._cfg["CompressOutputs"]
+
+    def setCompressedOutput(self, boolean):
+        self._cfg["CompressOutputs"] = boolean
 
     def save(self):
         with self._objectCache.lock:
@@ -1017,10 +1032,10 @@ def parseIncludesList(compilerOutput, sourceFile, baseDir, strip):
 def addObjectToCache(stats, cache, outputFile, compilerStdout, compilerStderr, cachekey):
     printTraceStatement("Adding file " + outputFile + " to cache using " +
                         "key " + cachekey)
-    cache.setEntry(cachekey, outputFile, compilerStdout, compilerStderr)
+    cfg = Configuration( cache )
+    cache.setEntry(cfg, cachekey, outputFile, compilerStdout, compilerStderr)
     if outputFile != '':
         stats.registerCacheEntry(os.path.getsize(outputFile))
-        cfg = Configuration(cache)
         cache.clean(stats, cfg.maximumCacheSize())
 
 
