@@ -179,13 +179,17 @@ class ObjectCache:
         # compute real current size to fix up the stored cacheSize
         currentSize = reduce( lambda x, y: x + y[ 0 ].st_size, objectInfos, 0 )
 
+        removedItems = 0
         for stat, fn in objectInfos:
             rmtree(os.path.split(fn)[0])
+            removedItems += 1
             currentSize -= stat.st_size
             if currentSize < effectiveMaximumSize:
                 break
 
         stats.setCacheSize(currentSize)
+        stats.setNumCacheEntries(stats.numCacheEntries() - removedItems)
+
 
     def removeObjects(self, stats, removedObjects):
         if len(removedObjects) == 0:
@@ -492,6 +496,9 @@ class CacheStatistics:
 
     def numCacheEntries(self):
         return self._stats["CacheEntries"]
+
+    def setNumCacheEntries(self, number):
+        self._stats["CacheEntries"] = number
 
     def registerCacheEntry(self, size):
         self._stats["CacheEntries"] += 1
