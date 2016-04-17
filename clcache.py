@@ -1171,7 +1171,7 @@ clcache.py v{}
   --help    : show this help
   -s        : print cache statistics
   -c        : clean cache
-  -c        : clear cache
+  -C        : clear cache
   -z        : reset cache statistics
   -M <size> : set maximum cache size (in bytes)
 """.strip().format(VERSION))
