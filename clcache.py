@@ -169,11 +169,20 @@ class ObjectCache:
             except ImportError:
                 walker = os.walk
 
-        objects = [os.path.join(root, "object")
-                   for root, folder, files in walker(self.objectsDir)
-                   if "object" in files]
+        objectInfos = []
+        for x in range(16):
+            try:
+                objects = [os.path.join(root, "object")
+                       for root, folder, files in walker(self.objectsDir)
+                       if "object" in files]
 
-        objectInfos = [(os.stat(fn), fn) for fn in objects]
+                objectInfos = [(os.stat(fn), fn) for fn in objects]
+                break
+            except WindowsError:
+                print( "exception during \"clean\", retrying" )
+
+        if not objectInfos: return # we could not stat the cache
+
         objectInfos.sort(key=lambda t: t[0].st_atime)
 
         # compute real current size to fix up the stored cacheSize
