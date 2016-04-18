@@ -186,7 +186,7 @@ class ObjectCache:
 
         removedItems = 0
         for stat, fn in objectInfos:
-            rmtree(os.path.split(fn)[0])
+            rmtree(os.path.split(fn)[0], ignore_errors=True)
             removedItems += 1
             currentSize -= stat.st_size
             if currentSize < effectiveMaximumSize:
@@ -212,7 +212,7 @@ class ObjectCache:
                     fileStat = os.stat(objectPath)
                     currentSize -= fileStat.st_size
                     stats.unregisterCacheEntry(fileStat.st_size)
-                rmtree(dirPath)
+                rmtree(dirPath, ignore_errors=True)
 
     @staticmethod
     def getManifestHash(compilerBinary, commandLine, sourceFile):
