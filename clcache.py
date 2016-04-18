@@ -160,14 +160,10 @@ class ObjectCache:
         # try to use os.scandir or scandir.scandir
         # fall back to os.walk if not found
         try:
-            from os import scandir
-            walker = scandir
+            import scandir
+            walker = scandir.walk
         except ImportError:
-            try:
-                from scandir import scandir
-                walker = scandir
-            except ImportError:
-                walker = os.walk
+            walker = os.walk
 
         objectInfos = []
         for x in range(16):
