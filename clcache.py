@@ -188,7 +188,7 @@ class ObjectCache:
                 break
 
         stats.setCacheSize(currentSize)
-        stats.setNumCacheEntries(stats.numCacheEntries() - removedItems)
+        stats.setNumCacheEntries(len(objectInfos) - removedItems)
 
 
     def removeObjects(self, stats, removedObjects):
@@ -206,8 +206,8 @@ class ObjectCache:
                     # output (for preprocess-only).
                     fileStat = os.stat(objectPath)
                     currentSize -= fileStat.st_size
+                    stats.unregisterCacheEntry(fileStat.st_size)
                 rmtree(dirPath)
-            stats.setCacheSize(currentSize)
 
     @staticmethod
     def getManifestHash(compilerBinary, commandLine, sourceFile):
@@ -503,6 +503,10 @@ class CacheStatistics:
     def registerCacheEntry(self, size):
         self._stats["CacheEntries"] += 1
         self._stats["CacheSize"] += size
+
+    def unregisterCacheEntry(self, size):
+        self._stats["CacheEntries"] -= 1
+        self._stats["CacheSize"] -= size
 
     def currentCacheSize(self):
         return self._stats["CacheSize"]
